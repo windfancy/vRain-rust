@@ -1,0 +1,17 @@
+[package]
+name = "pdfcreate"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+ab_glyph = "0.2.32"
+printpdf = { version = "0.8.2", features = ["jpeg"] }
+encoding_rs = "0.8.33"
+encoding_rs_io = "0.1.7"
+slint = "1.13.1"
+sonic-rs = "0.5.5"
+serde = { version = "1.0.228", features = ["derive"] }
+
+[build-dependencies]
+slint-build ="1.13.1"
