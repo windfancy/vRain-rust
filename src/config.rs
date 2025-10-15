@@ -13,14 +13,7 @@ pub const MM_TO_PT: f32 = PT_PER_INCH / MM_PER_INCH;
 pub const FONT_OFFSET_SCALE: f32 = 1.2;
 pub const PUN_SCALE: f32 = 0.5; //非占位标点与正文字体大小比值
 pub const PUN_PUB: f32 = 0.8;   //占位符号Y偏移比例
-/* 
-tag_comment=【】 #标识批注文字
-tag_newpage=% #分页符号
-tag_halfpage=$ #半页分页符号
-tag_lastcol=& #跳至本页最后一列，用于卷回文本末行文字
-tag_bookilne=《》 #书名号转换为字符侧边线
-tag_space=@ #代表空格
-*/
+
 #[derive(Debug, Clone,Deserialize ,Serialize)]
 pub struct Parameter {
     pub pageinfo: Pager,
@@ -477,8 +470,8 @@ impl Base {
         title_font_size_pt: 24.0,              // 标题字体大小（点）
         number_font_size_scale: 0.4,           // 页码字体大小缩放比例
         punc_font_size_scale: 0.5,             // 标点符号字体大小缩放比例
-        main_font_path: "./fonts/qiji-combo.ttf".to_string(),      // 主字体路径
-        backup_font_path: "./fonts/simsun.ttc".to_string(),        // 备用字体路径
+        main_font_path: "./fonts/XiaolaiMonoSC-Regular.ttf".to_string(),      // 主字体路径
+        backup_font_path: "./fonts/simfang-lite.ttf".to_string(),        // 备用字体路径
         bookname: "庄子".to_string(),                           // 书籍名称
         bookauthor: "庄子".to_string(),                         // 书籍作者
         pdfcreater: "测试创建人".to_string(),                    // PDF创建人
@@ -515,3 +508,4 @@ impl Base {
     Ok(())
 }
 }
+
