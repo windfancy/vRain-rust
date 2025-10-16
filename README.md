@@ -1,6 +1,7 @@
 制作竖版书籍参考项目：https://github.com/shanleiguang/vRain
 
-<img width="950" height="636" alt="image" src="https://github.com/user-attachments/assets/6a65c07d-4083-416a-a89a-f5e0b7d5d5d0" />
+<img width="1265" height="900" alt="image" src="https://github.com/user-attachments/assets/460e8c90-e19c-442b-b203-6538d7207a0d" />
+
 
 使用rust+printpdf0.8.2实现程序逻辑，通过操作printpdf的ops模块实现背景模板制作，文本转换
 
