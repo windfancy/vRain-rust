@@ -2,6 +2,7 @@ import { GroupBox,CheckBox, Button,LineEdit,ComboBox,TabWidget,
     SpinBox,Slider } from "std-widgets.slint";
 export  component MainWindow inherits Window {
     in-out property <string> current_path;
+    in-out property <string> outtext  <=> outtext.text;
     in-out property <float> page_width_mm: 297;
     in-out property <float> page_height_mm: 210;
     in-out property <int> center_width_mm <=> center_width.value;
@@ -223,7 +224,7 @@ export  component MainWindow inherits Window {
                     }
                     font_path_line:=LineEdit {
                         height: 50px;
-                        text: current_path + "/fonts/XiaolaiMonoSC-Regular.ttf";
+                        text: current_path + "/fonts/qiji-combo.ttf";
                         edited(text) => {
                             font_path = text;
                         }
@@ -237,7 +238,7 @@ export  component MainWindow inherits Window {
                     }
                     font_backup_path_line:=LineEdit {
                         height: 50px;
-                        text: current_path + "/fonts/simfang-lite.ttf";
+                        text: current_path + "/fonts/simsun.ttc";
                         edited(text) => {
                             font_backup_path = text;
                         }
@@ -347,6 +348,7 @@ export  component MainWindow inherits Window {
                 width: 150px;
                 height: 50px;
                 text: "生成PDF"; 
+                primary: true;
                 clicked => {
                     create_pdf();
                 }
@@ -355,6 +357,7 @@ export  component MainWindow inherits Window {
                 width: 150px;
                 height: 50px;
                 text: "GS压缩PDF"; 
+                primary: true;
                 clicked => {
                     pdf_compress_gs();
                 }
@@ -363,6 +366,7 @@ export  component MainWindow inherits Window {
                 width: 150px;
                 height: 50px;
                 text: "加载配置"; 
+                primary: true;
                 clicked => {
                     get_config();
                 }
@@ -371,11 +375,23 @@ export  component MainWindow inherits Window {
                 width: 150px;
                 height: 50px;
                 text: "保存配置"; 
+                primary: true;
                 clicked => {
                     save_config();
                 }
+              
+            }
+        }
+        HorizontalLayout {
+            spacing: 10px;
+            alignment: center;                
+            outtext:=Text {
+                height: 100px;
+                font-size: 20px;  
+                vertical-alignment: center;                                     
+                color: #0028bb;
+                text: "";
             }
         }
     }
 }
-

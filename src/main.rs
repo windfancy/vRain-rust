@@ -1,7 +1,7 @@
 mod utils;
 mod pdfoption;
 mod config;
-use std::path::Path;
+use std::path::{Path,PathBuf};
 use config::*;
 slint::include_modules!();
 
@@ -11,7 +11,8 @@ fn main() {
 
 fn create() {
    let ui = MainWindow::new().unwrap();
-    update_ui(&ui);
+    let base = config::Base::default();
+    update_ui(&ui,&base);
     // 设置当前路径
     let dir_str = std::env::current_dir().unwrap().to_string_lossy().to_string();
     let _= ui.set_current_path(dir_str.clone().into());
@@ -21,20 +22,28 @@ fn create() {
     ui.on_create_pdf(move || {
         // 在闭包中使用弱引用访问UI
         if let Some(ui) = ui_weak_pdf.upgrade() { 
-            let font_path = ui.get_font_path();
-            let font_backup_path = ui.get_font_backup_path();
-            if !Path::new(font_path.as_str()).exists() 
-                && !Path::new(font_backup_path.as_str()).is_file() {
-                println!("字体文件不存在: {}，或备份字体文件不存在: {}", font_path, font_backup_path);
+            // 1. 获取字体路径并转换为 PathBuf（更安全的路径类型）
+            let font_path = PathBuf::from(ui.get_font_path().as_str());
+            let font_backup_path = PathBuf::from(ui.get_font_backup_path().as_str());
+
+            // 2. 检查主字体是否存在且为文件（而非目录）
+            let main_font_exists = font_path.is_file();
+            // 检查备份字体是否存在且为文件
+            let backup_font_exists = font_backup_path.is_file();
+            if !main_font_exists || !backup_font_exists {
+                println!("字体文件不存在: {}，或备份字体文件不存在: {}", font_path.display(), font_backup_path.display());
+                let _ = ui.set_outtext(format!("字体文件不存在: {}，或备份字体文件不存在: {}", font_path.display(), font_backup_path.display()).into());
                 return;
             }
-            if !Path::new(ui.get_input_path().as_str()).exists() {
-                println!("输入文件不存在: {}", ui.get_input_path());
+            if !PathBuf::from(ui.get_input_path().as_str()).exists() {
+                println!("输入文件不存在: {}", ui.get_input_path().as_str());
+                let _ = ui.set_outtext(format!("输入文件不存在: {}", ui.get_input_path().as_str()).into());
                 return;
             }
             let param = update_config(&ui); 
             pdfoption::create_pdf(&param);
-            println!("创建PDF成功");
+            println!("创建{}成功", ui.get_output_path());
+            let _ = ui.set_outtext(format!("创建{}成功", ui.get_output_path()).into());
         }
     });
 
@@ -48,16 +57,19 @@ fn create() {
             println!("需要压缩的PDF路径: {}", pdf_path);
             if !utils::is_ghostscript_installed() {
                 println!("未检测到Ghostscript安装。请先安装Ghostscript并确保gs命令在环境变量中。");
+                let _ = ui.set_outtext(format!("未检测到Ghostscript安装。请先安装Ghostscript并确保gs命令在环境变量中。").into());
             }
             else {
                 if let Err(e) = utils::pdf_compress(
                     pdf_path.as_str(),
                     pdf_path.replace(".pdf", "_compressed.pdf").as_str(),
                     compress_ratio) {
-                    println!("压缩PDF失败: {:?}", e);
+                    println!("压缩{}失败: {:?}", pdf_path, e);
+                    let _ = ui.set_outtext(format!("压缩{}失败: {:?}", pdf_path, e).into());
                 }
                 else {
-                    println!("压缩PDF成功");
+                    println!("压缩{}成功", pdf_path);
+                    let _ = ui.set_outtext(format!("压缩{}成功", pdf_path).into());
                 }
             }
         }
@@ -69,14 +81,17 @@ fn create() {
         if let Some(ui) = ui_weak_config.upgrade() { 
             let config_path = ui.get_config_path();
             println!("需要加载的配置文件路径: {}", config_path);
-            if !Path::new(config_path.as_str()).exists() {
-                println!("配置文件不存在: {}", config_path);
+            let _ = ui.set_outtext(format!("需要加载的配置文件路径: {}", config_path).into());
+            if !PathBuf::from(config_path.as_str()).exists() {
+                println!("配置文件不存在: {}", config_path.as_str());
+                let _ = ui.set_outtext(format!("配置文件不存在: {}", config_path.as_str()).into());
                 return;
             }
             let base = load_config_base(config_path.as_str());  
             //combox.set_selected_index(base.font.main_index as u32);
-            let _ = update_ui(&ui);
+            let _ = update_ui(&ui,&base);
             println!("加载的配置文件完成: {}", config_path);
+            let _ = ui.set_outtext(format!("加载的配置文件完成: {}", config_path).into());
         }
     }) ;
 
@@ -87,26 +102,32 @@ fn create() {
         if let Some(ui) = ui_weak_save.upgrade() { 
             let config_path = ui.get_config_path();
             println!("需要保存的配置文件路径: {}", config_path);
+            let _ = ui.set_outtext(format!("需要保存的配置文件路径: {}", config_path).into());
             // 提取文件所在的文件夹（父目录）
             if let Some(parent_dir) = Path::new(config_path.as_str()).parent() {
                 // 检查父目录是否存在
                 if !parent_dir.exists() {
                     println!("文件所在的文件夹不存在: {}", parent_dir.display());
+                    let _ = ui.set_outtext(format!("文件所在的文件夹不存在: {}", parent_dir.display()).into());
                     return; // 或返回错误
                 } else {
                     println!("文件夹存在: {}", parent_dir.display());
+                    let _ = ui.set_outtext(format!("文件夹存在: {}", parent_dir.display()).into());
                 }
                 } else {
                     // 处理无法获取父目录的情况（如路径是根目录）
                     println!("无法获取文件所在的文件夹路径");
+                    let _ = ui.set_outtext(format!("无法获取文件所在的文件夹路径").into());
                     return;
                 }
             let base = update_base(&ui);
             if let Err(e) = save_config_base(&base,config_path.as_str()) {
                 println!("保存配置文件失败: {:?}", e);
+                let _ = ui.set_outtext(format!("保存配置文件失败: {:?}", e).into());
                 return;
             }
             println!("配置文件已保存: {}", config_path);
+            let _ = ui.set_outtext(format!("配置文件已保存: {}", config_path).into());
         }
     }) ;
     ui.run().unwrap();
@@ -187,8 +208,7 @@ fn update_base(ui: &MainWindow) -> Base{
     base.content_font_size_pt = (col_width_mm * 0.6 * MM_TO_PT).round() as f32;    
     base
 }
-fn update_ui(ui: &MainWindow) {
-    let base = config::Base::default();
+fn update_ui(ui: &MainWindow,base: &Base) {
     ui.set_page_width_mm(base.page_width_mm.into());
     ui.set_page_height_mm(base.page_height_mm.into());
     ui.set_center_width_mm((base.center_width_mm as i32).into());
@@ -196,9 +216,9 @@ fn update_ui(ui: &MainWindow) {
     ui.set_page_left_margin_mm((base.page_left_margin_mm as i32).into());
     ui.set_tail_margin_mm((base.tail_margin_mm as i32).into());
     ui.set_column_count((base.column_count as i32).into());
-    ui.set_font_color(base.draw_color.into());
-    ui.set_background_color(base.bg_color.into());
-    ui.set_draw_color(base.line_color.into());
+    ui.set_font_color(base.draw_color.clone().into());
+    ui.set_background_color(base.bg_color.clone().into());
+    ui.set_draw_color(base.line_color.clone().into());
     ui.set_font_path(base.main_font_path.to_string().into());
     ui.set_font_backup_path(base.backup_font_path.to_string().into());
     ui.set_input_path(base.bookinputpath.to_string().into());

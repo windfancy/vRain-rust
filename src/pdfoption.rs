@@ -188,18 +188,13 @@ fn add_text(
         fontsize: f32,
         char_x: Pt,
         char_y: Pt,
-        color: &str,
         char : &str,
         char_rotate: f32,)->Vec<Op>{
 
     let mut ops = vec![];
-    let color_rbg = color_to_rgb(color);
-    ops.push(Op::SetFontSize { font: fontid.clone(), size: Pt(fontsize) });
-    ops.push(Op::SetFillColor { col: color_rbg }); 
-    ops.push(Op::SetTextCursor { pos: Point { x: Pt(0.0), y:  Pt(0.0) } });     
+    ops.push(Op::SetFontSize { font: fontid.clone(), size: Pt(fontsize) });    
     ops.push(Op::SetTextMatrix {matrix: TextMatrix::TranslateRotate(char_x, char_y,char_rotate) });
     ops.push(Op::WriteText {items: vec![TextItem::Text(char.to_string())],font: fontid.clone()});   
-    ops.push(Op::SetTextMatrix {matrix: TextMatrix::TranslateRotate(Pt(0.0),Pt(0.0),0.0) });
     ops
 }
 fn add_pagenumber_text(
@@ -208,8 +203,12 @@ fn add_pagenumber_text(
         font_id: &FontId)->Vec<Op>{
 
     let mut ops = vec![];
+
     let fontsize =pagination.font_size_pt;
     let fontcolor = &pagination.font_color;
+    let color_rbg = color_to_rgb(&fontcolor);
+    ops.push(Op::SetFillColor { col: color_rbg }); 
+
     let char_x = Pt(pagination.loc_start_x_pt.0 - text.len() as f32 * fontsize / 2.0);
     let char_y = pagination.loc_start_y_pt;
     let pagenumber_text = utils::replace_numbers_with_chinese(text);
@@ -219,7 +218,6 @@ fn add_pagenumber_text(
                         fontsize, 
                         char_x, 
                         char_y, 
-                        fontcolor, 
                         &pagenumber_text, 
                         0.0));
     //println!("ops: {:?}", ops);
@@ -232,8 +230,13 @@ fn add_title_text(
         font_backup_id: &FontId)->Vec<Op>{
         
     let mut ops = vec![];
+
     let fontsize =t.font_size_pt;
     let fontcolor = &t.font_color;
+    let color_rbg = color_to_rgb(&fontcolor);
+    ops.push(Op::SetFillColor { col: color_rbg }); 
+    
+
     //let txt = "庄子";
     let mut char_x;
     let mut char_y;
@@ -249,7 +252,6 @@ fn add_title_text(
                     ops.append(&mut add_text(font_backup_id, 
                         fontsize, 
                         char_x, char_y, 
-                        fontcolor, 
                         &char_content.to_string(), 
                         0.0));
                 }
@@ -257,7 +259,6 @@ fn add_title_text(
                     ops.append(&mut add_text(font_id, 
                         fontsize, 
                         char_x, char_y, 
-                        fontcolor, 
                         &char_content.to_string(), 
                         0.0));                        
                 } 
@@ -277,7 +278,9 @@ fn add_centent_text(
     let mut ops = vec![];
     let fontsize =content.font_size_pt;
     let fontcolor = &content.font_color;
-    
+    let color_rbg = color_to_rgb(&fontcolor);
+    ops.push(Op::SetFillColor { col: color_rbg }); 
+
     let mut char_x ;
     let mut char_y ;
     let mut loc_x_pt;
@@ -307,8 +310,7 @@ fn add_centent_text(
                     char_y = loc_y_pt + content.space_y_pt * count as f32;                    
                     ops.append(&mut add_text(font_backup_id, 
                                     fontsize, 
-                                    char_x, char_y, 
-                                    fontcolor, 
+                                    char_x, char_y,  
                                     &char.to_string(), 
                                     0.0));
                     count += 1;               
@@ -319,7 +321,6 @@ fn add_centent_text(
                     ops.append(&mut add_text(font_backup_id, 
                                     content.pun_font_size_pt, 
                                     char_x, char_y, 
-                                    fontcolor, 
                                     &char.to_string(), 
                                     0.0));
                 }
@@ -329,7 +330,6 @@ fn add_centent_text(
                     ops.append(&mut add_text(font_backup_id, 
                                     fontsize, 
                                     char_x, char_y, 
-                                    fontcolor, 
                                     &char.to_string(), 
                                     -90.0));
                     count += 1;   
@@ -341,7 +341,6 @@ fn add_centent_text(
                     ops.append(&mut add_text(font_id, 
                                     fontsize, 
                                     char_x, char_y, 
-                                    fontcolor, 
                                     &char.to_string(), 
                                     0.0));
                     count += 1;               
