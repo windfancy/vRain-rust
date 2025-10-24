@@ -1,3 +1,9 @@
+2025-10-24
+对程序结构进行调整，支持单页竖版
+
+<img width="732" height="1048" alt="image" src="https://github.com/user-attachments/assets/60a02758-83f6-460b-ba2a-ba549c9d2bc7" />
+
+2025-10-12
 制作竖版书籍参考项目：https://github.com/shanleiguang/vRain
 
 <img width="1265" height="900" alt="image" src="https://github.com/user-attachments/assets/460e8c90-e19c-442b-b203-6538d7207a0d" />
