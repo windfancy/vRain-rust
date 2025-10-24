@@ -5,30 +5,79 @@ use std::path::Path;
 use std::sync::Arc;
 use std::thread;
 
-pub fn create_pdf(param: &Parameter) {    
+pub fn create_pdf_template(page: &Pager,drawcolor:&DrawColor,fileinfo:&FileInfo) {
+
+    let page_width_mm = page.page_width_mm;
+    let page_height_mm = page.page_height_mm;
+    let column_count = page.column_count  as usize; 
+    let bgcolor = color_to_rgb(drawcolor.bg.as_str());   
+    let linecolor = color_to_rgb(drawcolor.line.as_str());
+    let book_name = fileinfo.name.as_str();
+    let direction: u8 = if page_width_mm > page_height_mm {0} else {1};
+
+    let canvas = if direction == 0 { get_canvas_horizontal(&page) } else { get_canvas_vertical(&page) };
+
+    let tail = if direction == 0 { get_tail_horizontal(&page) } else { get_tail_vertical(&page)}; 
+    let mut doc = PdfDocument::new(book_name);
+    //设置背景层
+    let background_layer = Layer {
+        name: "Background".to_string(),
+        creator: "template".to_string(),
+        intent: LayerIntent::View,
+        usage: LayerSubtype::Artwork,
+    };
+    let background_layer_id = doc.add_layer(&background_layer);
+    let mut ops: Vec<Op> = Vec::new();            
+            // 制作模板（背景层）            
+    ops.append(&mut add_template(page_width_mm,
+                page_height_mm,
+                &canvas,
+                &tail,
+                bgcolor,
+                linecolor,
+                column_count,
+                direction,
+                background_layer_id.clone()));
+    let ordered_pages = PdfPage::new(
+        Mm(page_width_mm),
+        Mm(page_height_mm),
+        ops
+    );
+    doc.with_pages(vec![ordered_pages]);
+    // 保存PDF文件
+    let bytes = doc.save(&PdfSaveOptions::default(), &mut Vec::new());
+    
+    std::fs::write("./template.pdf", bytes)
+        .expect("Failed to write PDF file");    
+    println!("Created template.pdf");
+
+}
+pub fn create_pdf(page: &Pager,drawcolor:&DrawColor,fileinfo:&FileInfo) {    
     
     // 设置主要参数
-    let page_width_mm = param.pageinfo.page_width_mm;
-    let page_height_mm = param.pageinfo.page_height_mm;
-    let count_per_column = param.content.max_chars  as usize;
-    let column_count = param.pageinfo.column_count  as usize;    
-    let book_name = param.book.name.as_str();
-    let book_creater = param.book.creater.as_str();
-    let main_font_path = param.font.main_path.as_str();
-    let backup_font_path = param.font.backup_path.as_str();
-    let input_path = param.file.inputpath.as_str();
-    let output_path = param.file.outputpath.as_str();
-    let template =Template{
-        page_width_mm: param.pageinfo.page_width_mm,
-        page_height_mm: param.pageinfo.page_height_mm,
-        bgcolor: param.color.bg.clone(),
-        linecolor: param.color.line.clone(),
-        tail: param.tail.clone(),
-        canvas: param.canvas.clone(),
-    };
-    let pagination = param.pagination.clone();
-    let title: Title = param.title.clone();
-    let content = param.content.clone();
+    let page_width_mm = page.page_width_mm;
+    let page_height_mm = page.page_height_mm;
+    
+    let column_count = page.column_count  as usize;    
+    let book_name = fileinfo.name.as_str();
+    let book_creater = fileinfo.creater.as_str();
+    let main_font_path = fileinfo.main_path.as_str();
+    let backup_font_path = fileinfo.backup_path.as_str();
+    let input_path = fileinfo.inputpath.as_str();
+    let output_path = fileinfo.outputpath.as_str();
+    
+    let content = get_content_loc(&page);
+    let pagination = get_pagination_loc(&page);
+    let title = get_title_loc(&page);
+
+    let count_per_column = content.max_chars  as usize;
+    let fontcolor = color_to_rgb(&drawcolor.draw.as_str());
+    let bgcolor = color_to_rgb(&drawcolor.bg.as_str());
+    let linecolor = color_to_rgb(&drawcolor.line.as_str());
+
+    let direction: u8 = if page_width_mm > page_height_mm {0} else {1};
+    let canvas = if direction == 0 { get_canvas_horizontal(&page) } else { get_canvas_vertical(&page) };
+    let tail = if direction == 0 { get_tail_horizontal(&page) } else { get_tail_vertical(&page)};
     // 检查输入文件是否存在
     if !Path::new(&input_path).exists() {
         println!("错误：输入文件不存在: {}", input_path);
@@ -83,10 +132,12 @@ pub fn create_pdf(param: &Parameter) {
 
     //let mut pages = vec![];
     // 将不可变参数包装成Arc，以便在多线程间安全共享
-    let template_arc = Arc::new(template.clone());
+    let canvas_arc = Arc::new(canvas.clone());
+    let tail_arc = Arc::new(tail);
     let pagination_arc = Arc::new(pagination.clone());
     let content_arc = Arc::new(content.clone());
     let title_arc = Arc::new(title);
+
     let main_font_arc = Arc::new(main_font_id);
     let backup_font_arc = Arc::new(backup_font_id);
     let bg_layer_arc = Arc::new(background_layer_id);
@@ -96,8 +147,8 @@ pub fn create_pdf(param: &Parameter) {
     let mut handles = vec![];
 
     for (page_num, page_txt) in txt_pages.iter().enumerate() {
-
-        let template_clone = Arc::clone(&template_arc);
+        let canvas_clone = Arc::clone(&canvas_arc);
+        let tail_clone = Arc::clone(&tail_arc);
         let pagination_clone = Arc::clone(&pagination_arc);
         let content_clone = Arc::clone(&content_arc);
         let title_clone = Arc::clone(&title_arc);
@@ -107,28 +158,40 @@ pub fn create_pdf(param: &Parameter) {
         let bg_layer_clone = Arc::clone(&bg_layer_arc);
         let txt_layer_clone = Arc::clone(&txt_layer_arc);
         let book_name_clone: String = book_name.to_string();
+        let linecolor_clone = linecolor.clone();
+        let fontcolor_clone = fontcolor.clone();
+        let bgcolor_clone = bgcolor.clone();
 
         // 创建线程
         let handle = thread::spawn(move || {
             //println!("线程 {:?} 正在制作第{}页", thread::current().id(), page_num + 1);            
             let mut ops: Vec<Op> = Vec::new();            
             // 制作模板（背景层）            
-            ops.append(&mut add_template(&template_clone,
-                       column_count,
-                       bg_layer_clone.as_ref().clone()));
+            ops.append(&mut add_template(
+                        page_width_mm,
+                        page_height_mm,
+                        &canvas_clone,
+                        &tail_clone,
+                        bgcolor_clone,
+                        linecolor_clone,
+                        column_count,
+                        direction,
+                        bg_layer_clone.as_ref().clone()));
             // 处理文本内容（文本层）
             ops.push(Op::BeginLayer {layer_id: txt_layer_clone.as_ref().clone(),});
             // 添加页码
             let page_num_ops = add_pagenumber_text(                
                 &format!("{}", page_num + 1), 
                 &pagination_clone,
+                &fontcolor_clone,
                 &backup_font_clone
             );
             ops.extend(page_num_ops);          
             // 添加标题            
             let title_ops = add_title_text(
                 &title_clone,   
-                &book_name_clone,                
+                &book_name_clone, 
+                &fontcolor_clone,               
                 &main_font_clone,
                 &backup_font_clone
             );
@@ -138,7 +201,7 @@ pub fn create_pdf(param: &Parameter) {
             let content_ops = add_centent_text(
                 &page_txt, 
                 &content_clone,
-                column_count,
+                &fontcolor_clone,
                 &main_font_clone,
                 &backup_font_clone
             );
@@ -183,7 +246,7 @@ pub fn create_pdf(param: &Parameter) {
 }
 
 // 添加内容文本
-fn add_text(
+fn add_vertical_text(
         fontid: &FontId,
         fontsize: f32,
         char_x: Pt,
@@ -200,40 +263,47 @@ fn add_text(
 fn add_pagenumber_text(
         text: &str,
         pagination: &Pagination,
+        fontcolor:&Color,
         font_id: &FontId)->Vec<Op>{
 
     let mut ops = vec![];
 
     let fontsize =pagination.font_size_pt;
-    let fontcolor = &pagination.font_color;
-    let color_rbg = color_to_rgb(&fontcolor);
+    let color_rbg = fontcolor.clone();
     ops.push(Op::SetFillColor { col: color_rbg }); 
 
-    let char_x = Pt(pagination.loc_start_x_pt.0 - text.len() as f32 * fontsize / 2.0);
-    let char_y = pagination.loc_start_y_pt;
-    let pagenumber_text = utils::replace_numbers_with_chinese(text);
+    let loc_start_x_pt = pagination.loc_start_x_pt;
+    let loc_start_y_pt = pagination.loc_start_y_pt;
+    let space_y_pt = Pt(pagination.font_size_pt * FONT_OFFSET_SCALE);
+    let mut char_x;
+    let mut char_y;
     //let char_x = Pt(400.0);
     //let char_y = Pt(447.0);
-    ops.append(&mut add_text(font_id, 
-                        fontsize, 
-                        char_x, 
-                        char_y, 
-                        &pagenumber_text, 
-                        0.0));
+    for (i, char) in text.chars().enumerate(){
+        let char_content: char = utils::replace_char(char);
+        char_x = loc_start_x_pt;
+        char_y = loc_start_y_pt - space_y_pt * i as f32;
+        ops.append(&mut add_vertical_text(font_id, 
+                            fontsize, 
+                            char_x, 
+                            char_y, 
+                            &char_content.to_string(), 
+                            0.0));
+    }
     //println!("ops: {:?}", ops);
     ops
 }
 fn add_title_text(
         t: &Title,
-        txt: &str,        
+        txt: &str, 
+        fontcolor:&Color,       
         font_id: &FontId,
         font_backup_id: &FontId)->Vec<Op>{
         
     let mut ops = vec![];
 
     let fontsize =t.font_size_pt;
-    let fontcolor = &t.font_color;
-    let color_rbg = color_to_rgb(&fontcolor);
+    let color_rbg = fontcolor.clone();
     ops.push(Op::SetFillColor { col: color_rbg }); 
     
 
@@ -249,14 +319,14 @@ fn add_title_text(
         let char_content: char = utils::replace_char(char);
         match utils::is_punctuation(char_content) {
             0 => {// 是无读字符 
-                    ops.append(&mut add_text(font_backup_id, 
+                    ops.append(&mut add_vertical_text(font_backup_id, 
                         fontsize, 
                         char_x, char_y, 
                         &char_content.to_string(), 
                         0.0));
                 }
             _ => {
-                    ops.append(&mut add_text(font_id, 
+                    ops.append(&mut add_vertical_text(font_id, 
                         fontsize, 
                         char_x, char_y, 
                         &char_content.to_string(), 
@@ -271,33 +341,25 @@ fn add_title_text(
 fn add_centent_text(
         texts: &[String],
         content: &Content,
-        column_count: usize,
+        fontcolor: &Color,
         font_id: &FontId,
         font_backup_id: &FontId,)->Vec<Op>
     {
     let mut ops = vec![];
     let fontsize =content.font_size_pt;
-    let fontcolor = &content.font_color;
-    let color_rbg = color_to_rgb(&fontcolor);
+    let color_rbg = fontcolor.clone();
     ops.push(Op::SetFillColor { col: color_rbg }); 
 
     let mut char_x ;
     let mut char_y ;
     let mut loc_x_pt;
     let mut loc_y_pt;
-    let mut offset_x;
 
     for (col, linetxt) in texts.iter().enumerate(){  
         let mut count = 0; 
-        if col < (column_count as usize /2) {
-            loc_x_pt = content.loc_start_x1_pt;            
-            loc_y_pt = content.loc_start_y1_pt;
-            offset_x = content.space_x_pt * col as f32;
-        }else {
-            loc_x_pt = content.loc_start_x2_pt;
-            loc_y_pt = content.loc_start_y2_pt;
-            offset_x = content.space_x_pt * (col - column_count as usize /2) as f32;
-        }
+        loc_x_pt = content.loc_x_pt[col];            
+        loc_y_pt = content.loc_y_pt;
+
         for (_, char) in linetxt.chars().enumerate(){
             if count >= content.max_chars {
                 count = 0;
@@ -306,9 +368,9 @@ fn add_centent_text(
             let char_content: char = utils::replace_char(char);
             match utils::is_punctuation(char_content) {
                 0 => {// 无读字符
-                    char_x = loc_x_pt + offset_x;
+                    char_x = loc_x_pt;
                     char_y = loc_y_pt + content.space_y_pt * count as f32;                    
-                    ops.append(&mut add_text(font_backup_id, 
+                    ops.append(&mut add_vertical_text(font_backup_id, 
                                     fontsize, 
                                     char_x, char_y,  
                                     &char.to_string(), 
@@ -316,18 +378,18 @@ fn add_centent_text(
                     count += 1;               
                 }
                 1 => {// 标点字符
-                    char_x = loc_x_pt + offset_x + Pt(fontsize);
+                    char_x = loc_x_pt + Pt(fontsize);
                     char_y = loc_y_pt + content.space_y_pt * (count - 1) as f32;                    
-                    ops.append(&mut add_text(font_backup_id, 
+                    ops.append(&mut add_vertical_text(font_backup_id, 
                                     content.pun_font_size_pt, 
                                     char_x, char_y, 
                                     &char.to_string(), 
                                     0.0));
                 }
                 3 =>{// 旋转字符
-                    char_x = loc_x_pt + offset_x;
+                    char_x = loc_x_pt;
                     char_y = loc_y_pt + content.space_y_pt * count as f32 + Pt(fontsize * PUN_PUB);                    
-                    ops.append(&mut add_text(font_backup_id, 
+                    ops.append(&mut add_vertical_text(font_backup_id, 
                                     fontsize, 
                                     char_x, char_y, 
                                     &char.to_string(), 
@@ -336,9 +398,9 @@ fn add_centent_text(
 
                 }
                 _ => {// 正常字符
-                    char_x = loc_x_pt + offset_x;
+                    char_x = loc_x_pt;
                     char_y = loc_y_pt + content.space_y_pt * count as f32;                    
-                    ops.append(&mut add_text(font_id, 
+                    ops.append(&mut add_vertical_text(font_id, 
                                     fontsize, 
                                     char_x, char_y, 
                                     &char.to_string(), 
@@ -353,10 +415,19 @@ fn add_centent_text(
 }
 
 
-fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInternalId)->Vec<Op>{
+fn add_template(page_width_mm: f32, 
+                    page_height_mm: f32,
+                    canvas:&Canvas,
+                    tail:& Tail,
+                    bg_color:Color,
+                    line_color:Color,
+                    column_count: usize,
+                    direction: u8,
+                    bg_layer_id: LayerInternalId)->Vec<Op>{
     
     let mut ops = vec![];
-    let bg_color = color_to_rgb(&template.bgcolor.clone().to_string());
+
+    //print!("绘制底色\n");
     //绘制底色
     ops.push(Op::BeginLayer {layer_id: bg_layer_id.clone()});
     ops.push(Op::SetFillColor { col: bg_color });
@@ -373,22 +444,22 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
                     },
                     LinePoint {
                         p: Point {
-                            x: Mm(template.page_width_mm).into_pt(),
+                            x: Mm(page_width_mm).into_pt(),
                             y: Pt(0.0), // Top right
                         },
                         bezier: false,
                     },
                     LinePoint {
                         p: Point {
-                            x: Mm(template.page_width_mm).into_pt(),
-                            y: Mm(template.page_height_mm).into_pt(), // Bottom right
+                            x: Mm(page_width_mm).into_pt(),
+                            y: Mm(page_height_mm).into_pt(), // Bottom right
                         },
                         bezier: false,
                     },
                     LinePoint {
                         p: Point {
                             x: Pt(0.0),
-                            y: Mm(template.page_height_mm).into_pt(), // Bottom left
+                            y: Mm(page_height_mm).into_pt(), // Bottom left
                         },
                         bezier: false,
                     },
@@ -399,105 +470,112 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
         },
     });
 
-    // 绘制页面外边框  
-    let line_color = color_to_rgb(&template.linecolor.clone().to_string());   
+
+    //print!("绘制页面外边框\n");
+    // 绘制页面外边框    
     ops.push(Op::SetOutlineColor { col: line_color.clone() });
-    ops.push(Op::SetOutlineThickness { pt: template.canvas.line_width_pt });
+    ops.push(Op::SetOutlineThickness { pt: canvas.line_width_pt });
     ops.push(Op::DrawLine { 
         line: Line {
             points: vec![
                 LinePoint {
                     p: Point {
-                        x: template.canvas.point_left_bottom.x - template.canvas.line_offset_pt,
-                        y: template.canvas.point_left_bottom.y - template.canvas.line_offset_pt,
+                        x: canvas.point_left_bottom.x - canvas.line_offset_pt,
+                        y: canvas.point_left_bottom.y - canvas.line_offset_pt,
                     },
                     bezier: false,
                 },
                 LinePoint {
                     p: Point {
-                        x: template.canvas.point_left_top.x - template.canvas.line_offset_pt,
-                        y: template.canvas.point_left_top.y + template.canvas.line_offset_pt,
+                        x: canvas.point_left_top.x - canvas.line_offset_pt,
+                        y: canvas.point_left_top.y + canvas.line_offset_pt,
                     },
                     bezier: false,
                 },
                 LinePoint {
                     p: Point {
-                        x: template.canvas.point_right_top.x + template.canvas.line_offset_pt,
-                        y: template.canvas.point_right_top.y + template.canvas.line_offset_pt,
+                        x: canvas.point_right_top.x + canvas.line_offset_pt,
+                        y: canvas.point_right_top.y + canvas.line_offset_pt,
                     },
                     bezier: false,
                 },
                 LinePoint {
                     p: Point {
-                        x: template.canvas.point_right_bottom.x + template.canvas.line_offset_pt,
-                        y: template.canvas.point_right_bottom.y - template.canvas.line_offset_pt,
+                        x: canvas.point_right_bottom.x + canvas.line_offset_pt,
+                        y: canvas.point_right_bottom.y - canvas.line_offset_pt,
                     },
                     bezier: false,
                 },
             ],
             is_closed: true,
-        } } ); 
+        } 
+    } ); 
+    
     //绘制鱼尾中线
-    ops.push(Op::DrawLine { 
-        line: Line {
-            points: vec![
-                LinePoint {
-                    p: Point {
-                        x: Mm(template.page_width_mm / 2.0).into_pt(),
-                        y: template.canvas.point_center_left_bottom.y, // Bottom left
+    if direction == 0 {  
+        //print!("绘制鱼尾中线");  
+        ops.push(Op::DrawLine { 
+            line: Line {
+                points: vec![
+                    LinePoint {
+                        p: Point {
+                            x: Mm(page_width_mm / 2.0).into_pt(),
+                            y: canvas.point_center_left_bottom.y, // Bottom left
+                        },
+                        bezier: false,
                     },
-                    bezier: false,
-                },
-                LinePoint {
-                    p: Point {
-                        x: Mm(template.page_width_mm / 2.0).into_pt(),
-                        y: template.tail.point_line_down_left.y, 
+                    LinePoint {
+                        p: Point {
+                            x: Mm(page_width_mm / 2.0).into_pt(),
+                            y: tail.point_line_down_left.y, 
+                        },
+                        bezier: false,
                     },
-                    bezier: false,
-                },
-            ],
-            is_closed: false,
-        } } );
+                ],
+                is_closed: false,
+            } } );
 
-    ops.push(Op::DrawLine { 
-        line: Line {
-            points: vec![
-                LinePoint {
-                    p: Point {
-                        x: Mm(template.page_width_mm / 2.0).into_pt(),
-                        y: template.tail.point_line_up_left.y, 
+        ops.push(Op::DrawLine { 
+            line: Line {
+                points: vec![
+                    LinePoint {
+                        p: Point {
+                            x: Mm(page_width_mm / 2.0).into_pt(),
+                            y: tail.point_line_up_left.y, 
+                        },
+                        bezier: false,
                     },
-                    bezier: false,
-                },
-                LinePoint {
-                    p: Point {
-                        x: Mm(template.page_width_mm / 2.0).into_pt(),
-                        y: template.canvas.point_center_left_top.y, 
-                    },  
-                    bezier: false,
-                },
-            ],
-            is_closed: false,
-        } } );
+                    LinePoint {
+                        p: Point {
+                            x: Mm(page_width_mm / 2.0).into_pt(),
+                            y: canvas.point_center_left_top.y, 
+                        },  
+                        bezier: false,
+                    },
+                ],
+                is_closed: false,
+            } } );
+    }
+    //print!("绘制页面内边框");
     // 绘制页面内边框
     ops.push(Op::SetOutlineThickness { pt: Pt(0.5) });
     ops.push(Op::DrawLine { 
         line: Line {
             points: vec![
                 LinePoint {
-                    p: template.canvas.point_left_bottom,
+                    p: canvas.point_left_bottom,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_left_top,
+                    p: canvas.point_left_top,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_right_top,
+                    p: canvas.point_right_top,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_right_bottom,
+                    p: canvas.point_right_bottom,
                     bezier: false,
                 },
             ],
@@ -508,42 +586,44 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
         line: Line {
             points: vec![
                 LinePoint {
-                    p: template.canvas.point_center_left_bottom,
+                    p: canvas.point_center_left_bottom,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_center_left_top,
+                    p: canvas.point_center_left_top,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_center_right_top,
+                    p: canvas.point_center_right_top,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.canvas.point_center_right_bottom,
+                    p: canvas.point_center_right_bottom,
                     bezier: false,
                 },
             ],
             is_closed: true,
         } } ); 
+    
 
+    //print!("绘制列线\n");
     for i in 0..column_count{
-        if i < column_count /2 {
+        if i < column_count /2 || direction ==1 {
             ops.push(Op::DrawLine { 
                 line: Line {
                     points: vec![
                         LinePoint {
                             p: Point {
-                                x: template.canvas.point_left_bottom.x 
-                                   + template.canvas.column_width_pt * i as f32,
-                                y: template.canvas.point_left_bottom.y, // Bottom left
+                                x: canvas.point_left_bottom.x 
+                                   + canvas.column_width_pt * i as f32,
+                                y: canvas.point_left_bottom.y, // Bottom left
                             },
                             bezier: false,
                         },
                         LinePoint {
                             p: Point {
-                                x: template.canvas.point_left_top.x + template.canvas.column_width_pt * i as f32,
-                                y: template.canvas.point_left_top.y, // Top left
+                                x: canvas.point_left_top.x + canvas.column_width_pt * i as f32,
+                                y: canvas.point_left_top.y, // Top left
                             },
                             bezier: false,
                         },
@@ -556,19 +636,19 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
                     points: vec![
                         LinePoint {
                             p: Point {
-                                x: template.canvas.point_right_bottom.x 
-                                   - template.canvas.column_width_pt 
+                                x: canvas.point_right_bottom.x 
+                                   - canvas.column_width_pt 
                                    * (i - column_count / 2) as f32,
-                                y: template.canvas.point_right_bottom.y, // Bottom left
+                                y: canvas.point_right_bottom.y, // Bottom left
                             },
                             bezier: false,
                         },
                         LinePoint {
                             p: Point {
-                                x: template.canvas.point_right_top.x 
-                                   - template.canvas.column_width_pt 
+                                x: canvas.point_right_top.x 
+                                   - canvas.column_width_pt 
                                    * (i - column_count / 2) as f32,
-                                y: template.canvas.point_right_top.y, // Top left
+                                y: canvas.point_right_top.y, // Top left
                             },
                             bezier: false,
                         },
@@ -583,11 +663,11 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
         line: Line {
             points: vec![
                 LinePoint {
-                    p: template.tail.point_line_down_left,
+                    p: tail.point_line_down_left,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.tail.point_line_down_right,
+                    p: tail.point_line_down_right,
                     bezier: false,
                 },
             ],
@@ -597,11 +677,11 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
         line: Line {
             points: vec![
                 LinePoint {
-                    p: template.tail.point_line_up_left,
+                    p: tail.point_line_up_left,
                     bezier: false,
                 },
                 LinePoint {
-                    p: template.tail.point_line_up_right,
+                    p: tail.point_line_up_right,
                     bezier: false,
                 },
             ],
@@ -616,23 +696,23 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
             rings: vec![PolygonRing {
                 points: vec![
                     LinePoint {
-                        p: template.tail.point_up_left_top,
+                        p: tail.point_up_left_top,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_up_right_top,  
+                        p: tail.point_up_right_top,  
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_up_right_bottom,
+                        p: tail.point_up_right_bottom,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_up_center,
+                        p: tail.point_up_center,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_up_left_bottom,
+                        p: tail.point_up_left_bottom,
                         bezier: false,
                     },
                 ],
@@ -647,23 +727,23 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
             rings: vec![PolygonRing {
                 points: vec![
                     LinePoint {
-                        p: template.tail.point_down_left_bottom,
+                        p: tail.point_down_left_bottom,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_down_right_bottom,  
+                        p: tail.point_down_right_bottom,  
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_down_right_top,
+                        p: tail.point_down_right_top,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_down_center,
+                        p: tail.point_down_center,
                         bezier: false,
                     },
                     LinePoint {
-                        p: template.tail.point_down_left_top,
+                        p: tail.point_down_left_top,
                         bezier: false,
                     },
                 ],
@@ -675,3 +755,5 @@ fn add_template(template: &Template, column_count: usize,bg_layer_id: LayerInter
     ops.push(Op::EndLayer {layer_id: bg_layer_id.clone()});  
     ops
 }
+
+

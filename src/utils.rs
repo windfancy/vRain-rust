@@ -115,33 +115,6 @@ pub fn char_is_exist(font: &FontArc, c: char) -> bool {
     }
 }
 
-pub fn replace_numbers_with_chinese(s: &str) -> String {
-    // 创建数字到中文数字的映射关系
-    let number_map: std::collections::HashMap<char, &str> = [
-        ('1', "一"),
-        ('2', "二"),
-        ('3', "三"),
-        ('4', "四"),
-        ('5', "五"),
-        ('6', "六"),
-        ('7', "七"),
-        ('8', "八"),
-        ('9', "九"),
-        ('0', "〇"),
-        ('@', " "),
-        ('\r', ""),
-    ].iter().cloned().collect();
-
-    // 遍历字符串中的每个字符，替换数字字符
-    s.chars()
-        .map(|c| {
-            // 若为数字则替换，否则保持原样
-            number_map.get(&c)
-                .map(|&chinese| chinese.to_string())
-                .unwrap_or_else(|| c.to_string())
-        })
-        .collect()
-}
 
 /// 过滤行集合中的空白行
 fn filter_blank_lines(lines: &[String]) -> Vec<String> {
