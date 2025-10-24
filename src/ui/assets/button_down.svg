@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="495.0000286102295" height="123.75000715255737" viewBox="0 0 200 50">
+  <defs>
+    <!-- 按下状态的主体渐变（更深的蓝色层次） -->
+    <linearGradient id="btnPressedGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#004C99"/>
+      <stop offset="50%" stop-color="#003366"/>
+      <stop offset="100%" stop-color="#002244"/>
+    </linearGradient>
+    <!-- 按下状态的光泽（更暗、更集中的高光） -->
+    <linearGradient id="glossPressedGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.3"/>
+      <stop offset="20%" stop-color="white" stop-opacity="0.1"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- 按下状态的按钮主体 -->
+  <rect x="0" y="0" width="200" height="50" rx="25" ry="25" fill="url(#btnPressedGradient)" stroke="#002244" stroke-width="1"/>
+  <!-- 按下状态的光泽层 -->
+  <rect x="0" y="0" width="200" height="20" rx="25" ry="25" fill="url(#glossPressedGradient)"/>
+</svg>
