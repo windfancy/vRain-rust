@@ -1,0 +1,66 @@
+import { LineEdit,ComboBox,TabWidget,VerticalBox,HorizontalBox,SpinBox,Slider} from "std-widgets.slint";
+import { BlueButton } from "bluebutton.slint";
+import { AppGlobal, AppImages } from "styles.slint";
+import { SettingTab,TemplateTab } from "makefile.slint";
+
+export  component MainWindow inherits Window {
+    in-out property <string> current_path <=> setting.current_path;
+    in-out property <string> input_path <=> setting.input_path;   
+    in-out property <string> book_name <=> setting.book_name;
+    in-out property <string> output_path <=> setting.output_path;
+    in-out property <float> compress_ratio <=> setting.compress_ratio;     
+    in-out property <string> font_color <=> setting.font_color;
+    in-out property <string> font_path <=> setting.font_path;
+    in-out property <string> font_backup_path <=> setting.font_backup_path;
+    in-out property <string> outtext  <=> setting.outtext;
+    in-out property <string> outtext_config  <=> template.outtext;
+
+    in-out property <string> canvas_direction <=> template.canvas_direction;
+    in-out property <string> canvas_size <=> template.canvas_size;
+    in-out property <string> config_path <=> template.config_path;    
+    in-out property <string> page_width_mm <=> template.page_width_mm;
+    in-out property <string> page_height_mm <=> template.page_height_mm;
+    in-out property <int> center_width_mm <=> template.center_width_mm;
+    in-out property <int> column_count <=> template.column_count;
+    in-out property <int> page_left_margin_mm <=> template.page_left_margin_mm;
+    in-out property <int> page_top_margin_mm <=> template.page_top_margin_mm;
+    in-out property <int> tail_margin_mm <=> template.tail_margin_mm;    
+    in-out property <string> background_color <=> template.background_color;
+    in-out property <string> line_color <=> template.line_color;
+
+    callback create_pdf<=>setting.create_pdf;
+    callback pdf_compress_gs<=>setting.pdf_compress_gs;
+    callback get_config<=>template.get_config;
+    callback save_config<=>template.save_config;
+    callback make_template<=>template.make_template;
+    
+    width: 600px;
+    height: 650px;
+    default-font-size: 16px;
+    title: "古籍电子书制作";
+    //background:gray;
+    //background: @linear-gradient(90deg, #87CEEB 0%, #1E90FF 50%, #4e4ef8 100%);
+    // 设置窗口图标
+    icon: AppImages.img-icon;          
+    TabWidget { 
+         
+        Tab {
+            title: "文件制作";
+            
+            VerticalBox {
+                    width: 90%;
+                    setting:=SettingTab {
+                        current_path: "default";
+                    }
+                }
+        }
+        Tab {
+            title: "模板制作";
+            VerticalBox {
+                width: 90%;
+                template:=TemplateTab {
+                }
+            }
+        }
+    }
+}

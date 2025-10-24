@@ -1,0 +1,25 @@
+import { AppImages, AppGlobal } from "styles.slint";
+export component BlueButton inherits Rectangle {
+    in-out property icon-source <=> icon.source;
+    in-out property<bool> enabled <=> touch-area.enabled;
+    in property<color> background-color: AppGlobal.foreground;
+    callback clicked <=> touch-area.clicked;
+    border-radius: 20px;
+    border-width: 2px;
+    opacity: root.enabled ? 1.0 : 0.5;
+    icon := Image {
+        width: 100%;
+        height: 100%;        
+        source: touch-area.pressed ? AppImages.img_button_down : AppImages.img_button_up;
+    }
+    Text {
+        width: 100%;
+        height: 100%;
+        font-size: 20px;
+        text: "";
+        vertical-alignment: center;
+        horizontal-alignment: center;
+        color: AppGlobal.foreground;
+    }
+    touch-area := TouchArea {}
+}
