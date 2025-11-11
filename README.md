@@ -1,3 +1,8 @@
+2025-11-10
+-对程序进行优化，增加章节换页，用%%进行章节分隔符，并自动换页
+-为竖版增加封面绘制功能
+<img width="833" height="1110" alt="image" src="https://github.com/user-attachments/assets/6f52f9aa-65e4-4921-84d2-363cc788c78f" />
+
 2025-10-24
 对程序结构进行调整，支持单页竖版
 
