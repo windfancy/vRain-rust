@@ -1,12 +1,12 @@
 [package]
-name = "pdfcreate"
+name = "AncientBook-rust"
 version = "0.1.0"
 edition = "2024"
 build = "build.rs"
 
 [dependencies]
 ab_glyph = "0.2.32"
-printpdf = { version = "0.8.2", features = ["jpeg"] }
+printpdf = { version = "0.8.2", features = ["jpeg，png"] }
 encoding_rs = "0.8.33"
 encoding_rs_io = "0.1.7"
 slint = "1.13.1"
