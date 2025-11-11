@@ -1,4 +1,3 @@
-use ab_glyph::{Font,FontArc,GlyphId};
 use std::process::{Command, Stdio};
 // 引入编码检测和转换相关的库
 use encoding_rs::*;
@@ -45,77 +44,6 @@ pub fn get_txt(file_name: &str) -> Result<String, Box<dyn Error>> {
     Ok(decoded.into_owned())
 }
 
-/// 检查文件夹是否存在，不存在则创建
-/// 返回 Result<(), std::io::Error>，成功时返回 Ok(())，失败时返回错误信息
-/* pub fn ensure_directory_exists(path: &str,flag:u8) -> Result<(), std::io::Error> {
-    let dir_path = Path::new(path);    
-    // 检查文件夹是否存在
-    if dir_path.exists() {
-        // 确认路径指向的是一个文件夹
-        if dir_path.is_dir() {
-            println!("文件夹已存在: {}", path);
-            Ok(())
-        } else {
-            // 路径存在但不是文件夹
-            Err(std::io::Error::new(
-                std::io::ErrorKind::AlreadyExists,
-                format!("路径已存在但不是文件夹: {}", path)
-            ))
-        }
-    } else {
-        // flag为1时，文件夹不存在，创建它
-        // 使用 create_dir_all 可以创建多级目录
-        if flag == 1 {
-            fs::create_dir_all(dir_path)?;
-            println!("文件夹创建成功: {}", path);
-            Ok(())
-        }   
-        else {
-            Err(std::io::Error::new(
-                std::io::ErrorKind::AlreadyExists,
-                format!("文件夹不存在: {}", path)
-            ))
-        }
-    }
-} */
-
-/* pub fn delete_dir(path: &str) -> Result<(), std::io::Error> {
-        // 替换你的删除逻辑
-    match fs::remove_dir(path) {
-        Ok(_) => {
-            println!("{}目录删除成功", path);
-            Ok(())
-        },
-        Err(e) => {          
-            // 如果是目录非空的错误，尝试递归删除
-            if e.kind() == io::ErrorKind::DirectoryNotEmpty {
-                if let Err(ee) = fs::remove_dir_all(path) {
-                    eprintln!("递归删除失败: {}", ee);
-                    Err(ee)
-                } else {
-                    ("{}目录删除成功", path);
-                    Ok(())  
-                }
-            }
-            else {
-                Err(e)
-            }
-        }
-    }
-} */
-
-
-pub fn char_is_exist(font: &FontArc, c: char) -> bool {
-    // Get a glyph for 'q' with a scale & position.
-    let glyph_id = font.glyph_id(c);
-    if glyph_id == GlyphId(0) {
-        false
-    }else{
-        true    
-    }
-}
-
-
 /// 过滤行集合中的空白行
 fn filter_blank_lines(lines: &[String]) -> Vec<String> {
     lines
@@ -124,6 +52,22 @@ fn filter_blank_lines(lines: &[String]) -> Vec<String> {
         .filter(|line| !line.trim().is_empty())
         // 克隆字符串以获取所有权
         .cloned()
+        .collect()
+}
+
+/// 处理文本并返回 [章][页][行] 三维数组
+pub fn process_text(text: &str, chars_per_line: usize, lines_per_page: usize) -> Vec<Vec<Vec<String>>> {
+    // 1. 按%%分割为章节
+    let chapters: Vec<&str> = text.split("%%").collect();
+    
+    // 2. 处理每个章节：分行 -> 分页
+    chapters.iter()
+        .map(|chapter| {
+            // 先将章节内容分割为行
+            let lines = split_into_lines(chapter, chars_per_line);
+            // 再将行分割为页
+            split_into_pages(&lines, lines_per_page)
+        })
         .collect()
 }
 pub fn split_into_lines(text: &str, chars_per_line: usize) -> Vec<String> {
@@ -235,9 +179,9 @@ pub fn replace_char(c: char) -> char {
 }
 
 pub fn is_punctuation(c: char) -> u8 {
-    let punctuation_chars = "，@。！？、；：•□";
-    let no_read_chars = "〇";
-    let punctuation_chars_rotate = "{}（）……<>【】《》「」『』";
+    let punctuation_chars = "，@。！？、；：";
+    let no_read_chars = "□〇1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let punctuation_chars_rotate = "{}（）……<>【】《》「」—『』-•——";
     if no_read_chars.contains(c) {
         // 是无读字符
         0
